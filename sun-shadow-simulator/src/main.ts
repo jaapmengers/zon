@@ -1,6 +1,5 @@
 import "./style.css";
 import { GardenScene } from "./components/Scene";
-import { SunCalculator } from "./utils/SunCalculator";
 
 // Amsterdam coordinates
 const LATITUDE = 52.3676;

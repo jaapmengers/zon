@@ -35,17 +35,14 @@ export class GardenScene {
   private ground!: Mesh; // Using definite assignment assertion
   private house!: Group; // Using definite assignment assertion
   private sunlight!: DirectionalLight; // Using definite assignment assertion
-  private sunCalculator: SunCalculator = new SunCalculator();
   private directionMarkers!: Group; // Using definite assignment assertion
   private customModels: Object3D[] = [];
 
   private container: HTMLElement;
-  private controlsElement: HTMLElement | null;
   private resizeObserver: ResizeObserver;
 
   constructor(container: HTMLElement) {
     this.container = container;
-    this.controlsElement = document.getElementById("controls");
 
     // Create scene
     this.scene = new Scene();
