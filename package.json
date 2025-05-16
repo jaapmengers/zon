@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "suncalc": "^1.9.0",
+    "three": "^0.176.0"
+  },
+  "devDependencies": {
+    "@types/suncalc": "^1.9.2",
+    "@types/three": "^0.176.0"
+  }
+}
