@@ -109,7 +109,7 @@ export class GardenScene {
       const objLoader = new OBJLoader();
       this.house = await new Promise<Group>((resolve, reject) => {
         objLoader.load(
-          "/src/assets/huis-tuin.obj",
+          `${import.meta.env.BASE_URL}/huis-tuin.obj`,
           (object) => {
             // Enable shadows for all meshes
             object.traverse((child) => {
