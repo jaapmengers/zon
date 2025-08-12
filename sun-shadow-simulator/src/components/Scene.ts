@@ -19,6 +19,7 @@ import {
   CanvasTexture,
   Object3D,
   BufferGeometry,
+  Float32BufferAttribute,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SunCalculator, SunPosition } from "../utils/SunCalculator";
@@ -26,6 +27,28 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import * as SunCalc from "suncalc";
+
+interface CityJSON {
+  vertices: number[][];
+  CityObjects: {
+    [key: string]: {
+      geometry: Array<{
+        boundaries: number[][][];
+        semantics?: {
+          surfaces: Array<{ type: string }>;
+          values: number[];
+        };
+        type: string;
+      }>;
+      type: string;
+    };
+  };
+  transform: {
+    scale: number[];
+    translate: number[];
+  };
+}
 
 export class GardenScene {
   private scene: Scene;
@@ -55,7 +78,7 @@ export class GardenScene {
       0.1,
       1000
     );
-    this.camera.position.set(0, 40, 50);
+    this.camera.position.set(0, 50, 50); // Reset camera position
     this.camera.lookAt(0, 0, 0);
 
     // Create renderer constrained to container dimensions
@@ -104,44 +127,141 @@ export class GardenScene {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
-    // Load house model
+    // Load CityJSON buildings
     try {
-      const objLoader = new OBJLoader();
-      this.house = await new Promise<Group>((resolve, reject) => {
-        objLoader.load(
-          `${import.meta.env.BASE_URL}/huis-tuin.obj`,
-          (object) => {
-            // Enable shadows for all meshes
-            object.traverse((child) => {
-              if (child instanceof Mesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-              }
+      const response = await fetch(`${import.meta.env.BASE_URL}/example.json`);
+      const cityJSON = (await response.json()) as CityJSON;
+
+      console.log("Loaded CityJSON:", cityJSON);
+      console.log(
+        "Number of buildings:",
+        Object.keys(cityJSON.CityObjects).length
+      );
+      console.log("Transform:", cityJSON.transform);
+
+      // Calculate center point for centering the buildings
+      const centerX = cityJSON.transform.translate[0];
+      const centerY = cityJSON.transform.translate[1];
+      const centerZ = cityJSON.transform.translate[2];
+
+      // Create materials for different surface types
+      const materials = {
+        GroundSurface: new MeshStandardMaterial({
+          color: 0x808080,
+          transparent: false,
+          opacity: 1,
+          side: 2,
+        }),
+        WallSurface: new MeshStandardMaterial({
+          color: 0xcccccc,
+          transparent: false,
+          opacity: 1,
+          side: 2,
+        }),
+        RoofSurface: new MeshStandardMaterial({
+          color: 0x666666,
+          transparent: false,
+          opacity: 1,
+          side: 2,
+        }),
+      };
+
+      // Process each building
+      Object.entries(cityJSON.CityObjects).forEach(([buildingId, building]) => {
+        if (building.type !== "Building") return;
+
+        console.log("Processing building:", buildingId);
+
+        // Gather all Z (height) values for this building
+        let minZ = Infinity;
+        building.geometry.forEach((geom: { boundaries: number[][][] }) => {
+          geom.boundaries.forEach((boundary: number[][]) => {
+            boundary[0].forEach((vertexIndex: number) => {
+              const vertex = cityJSON.vertices[vertexIndex];
+              const z = vertex[2] * cityJSON.transform.scale[2];
+              if (z < minZ) minZ = z;
             });
-            resolve(object);
-          },
-          undefined,
-          reject
+          });
+        });
+
+        building.geometry.forEach(
+          (geom: {
+            type: string;
+            boundaries: number[][][];
+            semantics?: { surfaces: Array<{ type: string }>; values: number[] };
+          }) => {
+            if (geom.type !== "MultiSurface") return;
+
+            console.log(
+              "Processing MultiSurface with",
+              geom.boundaries.length,
+              "surfaces"
+            );
+
+            // Process each surface
+            geom.boundaries.forEach((boundary: number[][], index: number) => {
+              // Get surface type from semantics
+              const surfaceType =
+                geom.semantics?.surfaces[geom.semantics.values[index]]?.type ||
+                "WallSurface";
+              const material = materials[surfaceType as keyof typeof materials];
+
+              // Create geometry for this surface
+              const geometry = new BufferGeometry();
+
+              // Convert vertices
+              const vertices: number[] = [];
+              boundary[0].forEach((vertexIndex: number) => {
+                const vertex = cityJSON.vertices[vertexIndex];
+                // Apply transform: center X and Y, and align base to ground for Z
+                const x =
+                  (vertex[0] * cityJSON.transform.scale[0] +
+                    cityJSON.transform.translate[0] -
+                    centerX) *
+                  0.1;
+                const z =
+                  (vertex[1] * cityJSON.transform.scale[1] +
+                    cityJSON.transform.translate[1] -
+                    centerY) *
+                  0.1; // Y (CityJSON) -> Z (Three.js)
+                const y =
+                  (vertex[2] * cityJSON.transform.scale[2] - minZ) * 0.1; // Z (CityJSON) -> Y (Three.js), align base to ground
+                vertices.push(x, y, z);
+              });
+
+              geometry.setAttribute(
+                "position",
+                new Float32BufferAttribute(vertices, 3)
+              );
+
+              // Compute vertex normals
+              geometry.computeVertexNormals();
+
+              // Create mesh
+              const mesh = new Mesh(geometry, material);
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+
+              // Log the first vertex position for debugging
+              if (index === 0) {
+                const firstVertex = new Vector3(
+                  vertices[0],
+                  vertices[1],
+                  vertices[2]
+                );
+                console.log(
+                  "First vertex position after transform:",
+                  firstVertex
+                );
+              }
+
+              this.scene.add(mesh);
+            });
+          }
         );
       });
-
-      // Position the house model
-      this.house.position.set(0, 0, 0); // Center position
-      this.house.scale.set(0.1, 0.1, 0.1); // Default scale
-      this.house.rotation.set(-Math.PI / 2, 0, 0); // Rotate -90 degrees around X to convert from Z-up to Y-up
-      this.scene.add(this.house);
     } catch (error) {
-      console.error("Error loading house model:", error);
-      // Fallback to cube if model loading fails
-      const houseGeometry = new BoxGeometry(3, 3, 3);
-      const houseMaterial = new MeshStandardMaterial({ color: 0xd2b48c });
-      const fallbackHouse = new Mesh(houseGeometry, houseMaterial);
-      fallbackHouse.position.y = 1.5;
-      fallbackHouse.castShadow = true;
-      fallbackHouse.receiveShadow = true;
-      this.house = new Group();
-      this.house.add(fallbackHouse);
-      this.scene.add(this.house);
+      console.error("Error loading CityJSON:", error);
     }
 
     // Create sunlight (directional light)
@@ -150,11 +270,11 @@ export class GardenScene {
     this.sunlight.shadow.mapSize.width = 2048;
     this.sunlight.shadow.mapSize.height = 2048;
     this.sunlight.shadow.camera.near = 0.5;
-    this.sunlight.shadow.camera.far = 225; // Increased to cover larger area
-    this.sunlight.shadow.camera.left = -67.5; // Increased to cover larger area
-    this.sunlight.shadow.camera.right = 67.5; // Increased to cover larger area
-    this.sunlight.shadow.camera.top = 67.5; // Increased to cover larger area
-    this.sunlight.shadow.camera.bottom = -67.5; // Increased to cover larger area
+    this.sunlight.shadow.camera.far = 225;
+    this.sunlight.shadow.camera.left = -67.5;
+    this.sunlight.shadow.camera.right = 67.5;
+    this.sunlight.shadow.camera.top = 67.5;
+    this.sunlight.shadow.camera.bottom = -67.5;
     this.scene.add(this.sunlight);
     this.scene.add(this.sunlight.target);
 
@@ -169,11 +289,11 @@ export class GardenScene {
     this.scene.add(ambientLight);
 
     // Add axes helper
-    const axesHelper = new AxesHelper(45); // Increased to match new scale
+    const axesHelper = new AxesHelper(45);
     this.scene.add(axesHelper);
 
     // Add grid for better reference
-    const gridHelper = new GridHelper(90, 90); // Increased to match new ground size
+    const gridHelper = new GridHelper(90, 90);
     this.scene.add(gridHelper);
 
     // Add cardinal direction markers
