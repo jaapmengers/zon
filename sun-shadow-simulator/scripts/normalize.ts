@@ -60,9 +60,9 @@ function normalizeVertices() {
 
 getRelevantBoundaries();
 normalizeBoundaries();
-// normalizeVertices();
+normalizeVertices();
 
-// fs.writeFileSync(path.join(__dirname, '../public/normalized.json'), JSON.stringify(data, null, 2));
+fs.writeFileSync(path.join(__dirname, '../public/normalized.json'), JSON.stringify(data, null, 2));
 
 
 const [x, y] = data.vertices[1]

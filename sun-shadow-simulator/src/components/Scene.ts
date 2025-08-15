@@ -16,42 +16,10 @@ import {
   Sprite,
   SpriteMaterial,
   CanvasTexture,
-  Object3D,
-  BufferGeometry,
-  Float32BufferAttribute,
-  Box3,
-  SphereGeometry,
-  MeshBasicMaterial,
-  CameraHelper,
-  BoxGeometry,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SunCalculator, SunPosition } from "../utils/SunCalculator";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-
-interface CityJSON {
-  vertices: { key: number; value: number[] }[];
-  CityObjects: {
-    [key: string]: {
-      geometry: Array<{
-        boundaries: number[][][];
-        semantics?: {
-          surfaces: Array<{ type: string }>;
-          values: number[];
-        };
-        type: string;
-      }>;
-      type: string;
-    };
-  };
-  transform: {
-    scale: number[];
-    translate: number[];
-  };
-}
+import { CityJSONLoader, CityJSONParser } from "cityjson-threejs-loader";
 
 export class GardenScene {
   private scene: Scene;
@@ -61,7 +29,6 @@ export class GardenScene {
   private ground!: Mesh; // Using definite assignment assertion
   private sunlight!: DirectionalLight; // Using definite assignment assertion
   private directionMarkers!: Group; // Using definite assignment assertion
-  private customModels: Object3D[] = [];
 
   private container: HTMLElement;
   private resizeObserver: ResizeObserver;
@@ -129,228 +96,34 @@ export class GardenScene {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
-    // Load CityJSON buildings
+    // Load CityJSON buildings using cityjson-threejs-loader
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}/extracted.json`);
-      const cityJSON = (await response.json()) as CityJSON;
+      const response = await fetch(`${import.meta.env.BASE_URL}/normalized.json`);
+      const cityJSONData = await response.json();
 
-      console.log("Loaded CityJSON:", cityJSON);
-      console.log(
-        "Number of buildings:",
-        Object.keys(cityJSON.CityObjects).length
-      );
-      console.log("Transform:", cityJSON.transform);
+      // Initialize the parser and loader
+      const parser = new CityJSONParser();
+      const loader = new CityJSONLoader(parser);
 
-      // Calculate center point for centering the buildings
-      const centerX = cityJSON.transform.translate[0];
-      const centerY = cityJSON.transform.translate[1];
+      // Load the CityJSON data
+      loader.load(cityJSONData);
 
-      // Create materials for different surface types
-      const materials = {
-        GroundSurface: new MeshStandardMaterial({
-          color: 0x808080,
-          transparent: false,
-          opacity: 1,
-          side: 2,
-        }),
-        WallSurface: new MeshStandardMaterial({
-          color: 0xcccccc,
-          transparent: false,
-          opacity: 1,
-          side: 2,
-        }),
-        RoofSurface: new MeshStandardMaterial({
-          color: 0x666666,
-          transparent: false,
-          opacity: 1,
-          side: 2,
-        }),
-      };
+      // Add the loaded scene to our scene
+      this.scene.add(loader.scene);
 
-      // Process each building
-      Object.entries(cityJSON.CityObjects).forEach(([buildingId, building]) => {
-        if (building.type !== "Building") return;
+      // Fix the building rotation - rotate 90 degrees around Z-axis
+      loader.scene.rotation.x = -Math.PI / 2; // 90 degrees clockwise around Z-axis
 
-        console.log("Processing building:", buildingId);
-
-        // Gather all Z (height) values for this building
-        let minZ = Infinity;
-        building.geometry.forEach((geom: { boundaries: number[][][] }) => {
-          geom.boundaries.forEach((boundary: number[][]) => {
-            boundary[0].forEach((vertexIndex: number) => {
-              const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
-              if (!vertex) {
-                console.warn("Vertex not found:", vertexIndex);
-                return
-              }
-              const z = vertex.value[2] * cityJSON.transform.scale[2];
-              if (z < minZ) minZ = z;
-            });
-          });
-        });
-
-        building.geometry.forEach(
-          (geom: {
-            type: string;
-            boundaries: number[][][];
-            semantics?: { surfaces: Array<{ type: string }>; values: number[] };
-          }) => {
-            if (geom.type !== "MultiSurface") return;
-
-            console.log(
-              "Processing MultiSurface with",
-              geom.boundaries.length,
-              "surfaces"
-            );
-
-            // Process each surface
-            geom.boundaries.forEach((boundary: number[][], index: number) => {
-              // Get surface type from semantics
-              const surfaceType =
-                geom.semantics?.surfaces[geom.semantics.values[index]]?.type ||
-                "WallSurface";
-              const material = materials[surfaceType as keyof typeof materials];
-
-              // Create geometry for this surface
-              const geometry = new BufferGeometry();
-
-              // Convert vertices
-              const vertices: number[] = [];
-
-              // Debug: Log first few raw vertices before transformation
-              if (index === 0) {
-                console.log('Raw vertex data (first 3):');
-                for (let i = 0; i < Math.min(boundary[0].length, 3); i++) {
-                  const vertexIndex = boundary[0][i];
-                  const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
-                  if (vertex) {
-                    console.log(`Vertex ${i}:`, vertex.value);
-                    console.log(`Scale:`, cityJSON.transform.scale);
-                    console.log(`Translate:`, cityJSON.transform.translate);
-                  }
-                }
-              }
-
-              boundary[0].forEach((vertexIndex: number) => {
-                const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
-                if (!vertex) {
-                  console.warn("Vertex not found:", vertexIndex);
-                  return
-                }
-                // Apply transform: center X and Y, and align base to ground for Z
-                const x =
-                  (vertex.value[0] * cityJSON.transform.scale[0] +
-                    cityJSON.transform.translate[0] -
-                    centerX) *
-                  0.1;
-                const z =
-                  (vertex.value[1] * cityJSON.transform.scale[1] +
-                    cityJSON.transform.translate[1] -
-                    centerY) *
-                  0.1; // Y (CityJSON) -> Z (Three.js)
-                const y =
-                  (vertex.value[2] * cityJSON.transform.scale[2] - minZ) * 0.1; // Z (CityJSON) -> Y (Three.js), align base to ground
-                vertices.push(x, y, z);
-              });
-
-              geometry.setAttribute(
-                "position",
-                new Float32BufferAttribute(vertices, 3)
-              );
-
-              // Compute vertex normals
-              geometry.computeVertexNormals();
-
-              // Create mesh
-              const mesh = new Mesh(geometry, material);
-              mesh.castShadow = true;
-              mesh.receiveShadow = true;
-
-              // Log the first vertex position for debugging
-              if (index === 0) {
-                const firstVertex = new Vector3(
-                  vertices[0],
-                  vertices[1],
-                  vertices[2]
-                );
-                console.log(
-                  "First vertex position after transform:",
-                  firstVertex
-                );
-
-                // Debug: Add small spheres at the first few vertices to see where they are
-                for (let i = 0; i < Math.min(vertices.length / 3, 5); i++) {
-                  const debugVertexGeometry = new SphereGeometry(0.2);
-                  const debugVertexMaterial = new MeshBasicMaterial({ color: 0x00ff00 });
-                  const debugVertexSphere = new Mesh(debugVertexGeometry, debugVertexMaterial);
-                  debugVertexSphere.position.set(
-                    vertices[i * 3],
-                    vertices[i * 3 + 1],
-                    vertices[i * 3 + 2]
-                  );
-                  // this.scene.add(debugVertexSphere);
-                }
-              }
-
-              console.log('Adding mesh');
-
-              // Debug: Log mesh dimensions and position
-              const box = new Box3().setFromObject(mesh);
-              const size = box.getSize(new Vector3());
-              const center = box.getCenter(new Vector3());
-              console.log('Mesh dimensions:', size);
-              console.log('Mesh center:', center);
-              console.log('Mesh position:', mesh.position);
-
-              // Debug: Add a small visible sphere at the mesh center to see where it is
-              const debugGeometry = new SphereGeometry(0.5);
-              const debugMaterial = new MeshBasicMaterial({ color: 0xff0000 });
-              const debugSphere = new Mesh(debugGeometry, debugMaterial);
-              debugSphere.position.copy(center);
-              // this.scene.add(debugSphere);
-
-              this.scene.add(mesh);
-            });
+      this.scene.traverse((child) => {
+        if (child instanceof Mesh) {
+          if (child.material.isCityObjectsMaterial) {
+            child.material.showLod = 3;
+            child.castShadow = true
           }
-        );
+        }
       });
     } catch (error) {
       console.error("Error loading CityJSON:", error);
-    }
-
-    // Debug: Log overall scene bounds after all buildings are added
-    console.log('Scene children count:', this.scene.children.length);
-
-    // Create a temporary group to calculate overall bounds
-    const tempGroup = new Group();
-    this.scene.children.forEach(child => {
-      if (child instanceof Mesh && child !== this.ground) {
-        tempGroup.add(child.clone());
-      }
-    });
-
-    if (tempGroup.children.length > 0) {
-      const overallBox = new Box3().setFromObject(tempGroup);
-      const overallSize = overallBox.getSize(new Vector3());
-      const overallCenter = overallBox.getCenter(new Vector3());
-      console.log('Overall buildings bounds:', overallBox);
-      console.log('Overall buildings size:', overallSize);
-      console.log('Overall buildings center:', overallCenter);
-
-      // Add a large wireframe box to show the overall bounds
-      const boundsGeometry = new BoxGeometry(overallSize.x, overallSize.y, overallSize.z);
-      const boundsMaterial = new MeshBasicMaterial({
-        color: 0xffff00,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.5
-      });
-      const boundsMesh = new Mesh(boundsGeometry, boundsMaterial);
-      boundsMesh.position.copy(overallCenter);
-      this.scene.add(boundsMesh);
-
-      // Debug: Auto-adjust camera to frame all objects
-      this.frameAllObjects();
     }
 
     // Create sunlight (directional light)
@@ -385,25 +158,8 @@ export class GardenScene {
     const gridHelper = new GridHelper(90, 90);
     this.scene.add(gridHelper);
 
-    // Debug: Add camera helper to visualize camera frustum
-    const cameraHelper = new CameraHelper(this.camera);
-    this.scene.add(cameraHelper);
-
-    // Debug: Log camera position and target
-    console.log('Camera position:', this.camera.position);
-    console.log('Camera target (lookAt):', new Vector3(0, 0, 0));
-    console.log('Camera near/far:', this.camera.near, this.camera.far);
-
     // Add cardinal direction markers
     this.addCardinalDirections();
-
-    // Debug: Add a simple test cube to verify rendering is working
-    const testGeometry = new BoxGeometry(5, 5, 5);
-    const testMaterial = new MeshBasicMaterial({ color: 0xff0000 });
-    const testCube = new Mesh(testGeometry, testMaterial);
-    testCube.position.set(0, 2.5, 0);
-    this.scene.add(testCube);
-    console.log('Added test cube at position:', testCube.position);
   }
 
   // Create cardinal direction markers
@@ -484,7 +240,6 @@ export class GardenScene {
 
   updateSunPosition(date: Date, latitude: number, longitude: number): void {
     if (!this.sunlight) {
-      //   throw new Error("Sun light not initialized");
       return;
     }
 
@@ -499,19 +254,6 @@ export class GardenScene {
 
     // Update light intensity
     this.sunlight.intensity = sunPos.intensity;
-
-    // Show sun position info in console
-    console.log(
-      `Sun position: altitude: ${(
-        Math.asin(sunPos.position.y / 30) *
-        (180 / Math.PI)
-      ).toFixed(2)}°`
-    );
-    console.log(
-      `Sun light position: x:${sunPos.position.x.toFixed(
-        2
-      )}, y:${sunPos.position.y.toFixed(2)}, z:${sunPos.position.z.toFixed(2)}`
-    );
   }
 
   private onWindowResize(): void {
@@ -535,209 +277,5 @@ export class GardenScene {
 
     // Render scene
     this.renderer.render(this.scene, this.camera);
-  }
-
-  public loadModel(
-    file: File,
-    position: Vector3 = new Vector3(0, 0, 0),
-    scale: Vector3 = new Vector3(1, 1, 1),
-    rotation: Vector3 = new Vector3(0, 0, 0)
-  ): Promise<Object3D> {
-    return new Promise((resolve, reject) => {
-      const fileExtension = file.name.split(".").pop()?.toLowerCase();
-      const objectUrl = URL.createObjectURL(file);
-
-      const onLoad = (object: Object3D) => {
-        // Enable shadows for all meshes
-        object.traverse((child) => {
-          if (child instanceof Mesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-
-        // Apply transformations
-        object.position.copy(position);
-        object.scale.copy(scale);
-        object.rotation.set(rotation.x, rotation.y, rotation.z);
-
-        // Add to scene and store reference
-        this.scene.add(object);
-        this.customModels.push(object);
-
-        URL.revokeObjectURL(objectUrl);
-        resolve(object);
-      };
-
-      const onError = (error: unknown) => {
-        URL.revokeObjectURL(objectUrl);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      };
-
-      switch (fileExtension) {
-        case "obj":
-          const objLoader = new OBJLoader();
-          objLoader.load(objectUrl, onLoad, undefined, onError);
-          break;
-
-        case "stl":
-          const stlLoader = new STLLoader();
-          stlLoader.load(
-            objectUrl,
-            (geometry) => {
-              const material = new MeshStandardMaterial({ color: 0x808080 });
-              const mesh = new Mesh(geometry, material);
-              onLoad(mesh);
-            },
-            undefined,
-            onError
-          );
-          break;
-
-        case "gltf":
-        case "glb":
-          const gltfLoader = new GLTFLoader();
-          gltfLoader.load(
-            objectUrl,
-            (gltf) => onLoad(gltf.scene),
-            undefined,
-            onError
-          );
-          break;
-
-        case "fbx":
-          const fbxLoader = new FBXLoader();
-          fbxLoader.load(objectUrl, onLoad, undefined, onError);
-          break;
-
-        default:
-          reject(new Error(`Unsupported file format: ${fileExtension}`));
-      }
-    });
-  }
-
-  public removeModel(model: Object3D): void {
-    const index = this.customModels.indexOf(model);
-    if (index !== -1) {
-      this.customModels.splice(index, 1);
-      this.scene.remove(model);
-    }
-  }
-
-  public clearModels(): void {
-    this.customModels.forEach((model) => this.scene.remove(model));
-    this.customModels = [];
-  }
-
-  public async loadStaticModel(
-    modelPath: string,
-    position: Vector3 = new Vector3(0, 0, 0),
-    scale: Vector3 = new Vector3(1, 1, 1),
-    rotation: Vector3 = new Vector3(0, 0, 0)
-  ): Promise<Object3D> {
-    const fileExtension = modelPath.split(".").pop()?.toLowerCase();
-
-    try {
-      let object: Object3D;
-
-      switch (fileExtension) {
-        case "obj":
-          const objLoader = new OBJLoader();
-          object = await new Promise<Object3D>((resolve, reject) => {
-            objLoader.load(modelPath, resolve, undefined, reject);
-          });
-          break;
-
-        case "stl":
-          const stlLoader = new STLLoader();
-          const geometry = await new Promise<BufferGeometry>(
-            (resolve, reject) => {
-              stlLoader.load(modelPath, resolve, undefined, reject);
-            }
-          );
-          const material = new MeshStandardMaterial({ color: 0x808080 });
-          object = new Mesh(geometry, material);
-          break;
-
-        case "gltf":
-        case "glb":
-          const gltfLoader = new GLTFLoader();
-          const gltf = await new Promise<any>((resolve, reject) => {
-            gltfLoader.load(modelPath, resolve, undefined, reject);
-          });
-          object = gltf.scene;
-          break;
-
-        case "fbx":
-          const fbxLoader = new FBXLoader();
-          object = await new Promise<Object3D>((resolve, reject) => {
-            fbxLoader.load(modelPath, resolve, undefined, reject);
-          });
-          break;
-
-        default:
-          throw new Error(`Unsupported file format: ${fileExtension}`);
-      }
-
-      // Enable shadows for all meshes
-      object.traverse((child) => {
-        if (child instanceof Mesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-
-      // Apply transformations
-      object.position.copy(position);
-      object.scale.copy(scale);
-      object.rotation.set(rotation.x, rotation.y, rotation.z);
-
-      // Add to scene and store reference
-      this.scene.add(object);
-      this.customModels.push(object);
-
-      return object;
-    } catch (error) {
-      console.error("Error loading model:", error);
-      throw error;
-    }
-  }
-
-  // Debug method to frame all objects in the scene
-  private frameAllObjects(): void {
-    if (this.scene.children.length === 0) return;
-
-    // Create a bounding box for all objects (excluding helpers and lights)
-    const box = new Box3();
-    this.scene.children.forEach(child => {
-      if (child instanceof Mesh && child !== this.ground) {
-        box.expandByObject(child);
-      }
-    });
-
-    if (box.isEmpty()) return;
-
-    const center = box.getCenter(new Vector3());
-    const size = box.getSize(new Vector3());
-
-    // Calculate the distance needed to frame all objects
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const fov = this.camera.fov * (Math.PI / 180);
-    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-
-    // Add some padding
-    cameraZ *= 1.5;
-
-    // Position camera
-    this.camera.position.set(center.x, center.y + cameraZ * 0.5, center.z + cameraZ);
-    this.camera.lookAt(center);
-
-    // Update controls target
-    this.controls.target.copy(center);
-    this.controls.update();
-
-    console.log('Camera repositioned to frame all objects');
-    console.log('New camera position:', this.camera.position);
-    console.log('New camera target:', center);
   }
 }

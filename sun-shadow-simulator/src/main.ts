@@ -1,5 +1,5 @@
 import "./style.css";
-import { GardenScene } from "./components/Scene_2";
+import { GardenScene } from "./components/Scene";
 
 // Amsterdam coordinates
 const LATITUDE = 52.3676;
