@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "test:converter": "tsx scripts/testCityJSONConverter.ts"
   },
   "devDependencies": {
     "@types/suncalc": "^1.9.2",

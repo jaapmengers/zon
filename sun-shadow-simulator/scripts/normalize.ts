@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import proj4 from 'proj4';
+import { GeoConversion } from '../src/utils/GeoConversion';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,7 +63,7 @@ getRelevantBoundaries();
 normalizeBoundaries();
 normalizeVertices();
 
-fs.writeFileSync(path.join(__dirname, '../public/normalized.json'), JSON.stringify(data, null, 2));
+// fs.writeFileSync(path.join(__dirname, '../public/normalized.json'), JSON.stringify(data, null, 2));
 
 
 const [x, y] = data.vertices[1]
@@ -82,46 +83,15 @@ proj4.defs("EPSG:28992",
 
 // Now convert from RD_New (EPSG:28992) to WGS84 (EPSG:4326)
 // Coordinates input: [x, y] (RD X, Y in meters)
-const rdCoords = [x2, y2];
-const wgs84 = proj4("EPSG:28992", "EPSG:4326", rdCoords);
+const wgs84 = await GeoConversion.shared.rdnapToLatLong(x2, y2);
 
 console.log(wgs84[1], wgs84[0])
 
-
-
-// Output: 4.952392986878876, 52.468005275604774
-// Real: 52.4675196865463, 4.950109641848087
-
-
-
-
-// const minX = Math.min(...xs)
-// const maxX = Math.max(...xs)
-// const minY = Math.min(...ys)
-// const maxY = Math.max(...ys)
-// const minZ = Math.min(...zs)
-// const maxZ = Math.max(...zs)
-
-// console.log(minX, maxX, minY, maxY, minZ, maxZ)
-
 // Convert from EPSG:4326 to EPSG:28992
-const first = proj4("EPSG:4326", "EPSG:28992", [4.949130381009404, 52.46755248644969])
-const second = proj4("EPSG:4326", "EPSG:28992", [4.951367350851736, 52.46700472813446])
+const first = await GeoConversion.shared.latLongToRdnap(52.46755248644969, 4.949130381009404)
+const second = await GeoConversion.shared.latLongToRdnap(52.46700472813446, 4.951367350851736)
 
-// https://api.3dbag.nl//collections/pand/items?bbox=125128.10469439984,497728.02297969145,125163.09922238812,497777.34969445167
-// 125128.10469439984, 497728.02297969145 ] [ 125163.09922238812, 497777.34969445167
 console.log(first, second)
 console.log(`https://api.3dbag.nl//collections/pand/items?bbox=${first[0]},${first[1]},${second[0]},${second[1]}`)
 console.log(`https://3dbag.nl/en/viewer?rdx=${first[0]}&rdy=${first[1]}&ox=400&oy=400&oz=400&placeMarker=true`)
 console.log(`https://3dbag.nl/en/viewer?rdx=${second[0]}&rdy=${second[1]}&ox=400&oy=400&oz=400&placeMarker=true`)
-// 
-// https://3dbag.nl/en/viewer?rdx=75900.011&rdy=447000.034&ox=400&oy=400&oz=400&placeMarker=true
-// 
-
-
-// https://service.pdok.nl/lv/bag/wfs/v2_0?service=wfs&version=2.0.0&request=getfeature&typename=bag:verblijfsobject&outputFormat=application/json&filter=<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd"><fes:PropertyIsEqualTo><fes:PropertyName>pandidentificatie</fes:PropertyName><fes:Literal>0852100000001485</fes:Literal></fes:PropertyIsEqualTo></fes:Filter>
-
-
-
-// 52.467093347273185, 4.949904524961337
-// 52.467538567750005, 4.950415063643829

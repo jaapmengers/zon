@@ -16,6 +16,7 @@ import {
   Sprite,
   SpriteMaterial,
   CanvasTexture,
+  Box3,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SunCalculator, SunPosition } from "../utils/SunCalculator";
@@ -85,8 +86,7 @@ export class GardenScene {
   }
 
   private async setupSceneObjects(): Promise<void> {
-    // Create ground (90x90 meters)
-    const groundGeometry = new PlaneGeometry(90, 90);
+    const groundGeometry = new PlaneGeometry(200, 200);
     const groundMaterial = new MeshStandardMaterial({
       color: 0x7cfc00, // Lawn green
       side: 2, // DoubleSide
@@ -98,7 +98,7 @@ export class GardenScene {
 
     // Load CityJSON buildings using cityjson-threejs-loader
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}/normalized.json`);
+      const response = await fetch(`${import.meta.env.BASE_URL}/converted-output.json`);
       const cityJSONData = await response.json();
 
       // Initialize the parser and loader
@@ -113,6 +113,13 @@ export class GardenScene {
 
       // Fix the building rotation - rotate 90 degrees around Z-axis
       loader.scene.rotation.x = -Math.PI / 2; // 90 degrees clockwise around Z-axis
+
+      // Center the CityJSON scene on X and Y axes, but keep Z at ground level (0)
+      const box = new Box3().setFromObject(loader.scene);
+      const center = box.getCenter(new Vector3());
+      loader.scene.position.x = -center.x;
+      loader.scene.position.y = 0;
+      loader.scene.position.z = -center.z; // Keep at ground level
 
       this.scene.traverse((child) => {
         if (child instanceof Mesh) {
@@ -150,12 +157,8 @@ export class GardenScene {
     const ambientLight = new AmbientLight(0x404040, 0.5);
     this.scene.add(ambientLight);
 
-    // Add axes helper
-    const axesHelper = new AxesHelper(45);
-    this.scene.add(axesHelper);
-
     // Add grid for better reference
-    const gridHelper = new GridHelper(90, 90);
+    const gridHelper = new GridHelper(200, 200);
     this.scene.add(gridHelper);
 
     // Add cardinal direction markers
@@ -170,10 +173,10 @@ export class GardenScene {
 
     // Define cardinal directions and their colors
     const directions = [
-      { label: "N", position: new Vector3(0, 0, -45), color: "red" }, // Increased from -30 to -45
-      { label: "E", position: new Vector3(45, 0, 0), color: "green" }, // Increased from 30 to 45
-      { label: "S", position: new Vector3(0, 0, 45), color: "blue" }, // Increased from 30 to 45
-      { label: "W", position: new Vector3(-45, 0, 0), color: "yellow" }, // Increased from -30 to -45
+      { label: "N", position: new Vector3(0, 0, -100), color: "red" },
+      { label: "E", position: new Vector3(100, 0, 0), color: "green" },
+      { label: "S", position: new Vector3(0, 0, 100), color: "blue" },
+      { label: "W", position: new Vector3(-100, 0, 0), color: "yellow" },
     ];
 
     // Create markers for each direction

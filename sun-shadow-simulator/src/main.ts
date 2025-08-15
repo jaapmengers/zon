@@ -140,3 +140,22 @@ function updateSunPosition(date: Date) {
   scene.updateSunPosition(date, LATITUDE, LONGITUDE);
   updateMinimapPosition(date);
 }
+
+export async function getCityJSON(): Promise<ApiReponse> {
+  const resp = await fetch("https://api.3dbag.nl//collections/pand/items?bbox=125231.00354637404,497846.50210455013,125382.6477488262,497784.63905186305&limit=100")
+  const data = await resp.json() as ApiReponse
+  return data
+}
+
+interface ApiReponse {
+  features: {
+    CityObjects: {
+      [key: string]: {
+        attributes: { [key: string]: unknown }
+        geometry: {
+          boundaries: number[][][]
+        }
+      }
+    }
+  }[]
+}
