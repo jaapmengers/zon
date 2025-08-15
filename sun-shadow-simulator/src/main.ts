@@ -1,5 +1,5 @@
 import "./style.css";
-import { GardenScene } from "./components/Scene";
+import { GardenScene } from "./components/Scene_2";
 
 // Amsterdam coordinates
 const LATITUDE = 52.3676;
@@ -63,12 +63,10 @@ document.addEventListener("mousemove", (e) => {
   );
 
   // Update control position (centered)
-  minimapControl.style.left = `${
-    newLeft - minimapRect.left - controlRect.width / 2
-  }px`;
-  minimapControl.style.top = `${
-    newTop - minimapRect.top - controlRect.height / 2
-  }px`;
+  minimapControl.style.left = `${newLeft - minimapRect.left - controlRect.width / 2
+    }px`;
+  minimapControl.style.top = `${newTop - minimapRect.top - controlRect.height / 2
+    }px`;
 
   // Calculate time (0-1440 minutes) from x position
   const timePercent =

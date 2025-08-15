@@ -1,0 +1,143 @@
+{
+  "vertices": [
+    [
+      1701803,
+      938155,
+      -12693
+    ],
+    [
+      1699555,
+      951415,
+      -12693
+    ],
+    [
+      1696696,
+      950929,
+      -12693
+    ],
+    [
+      1697397,
+      946786,
+      -12693
+    ],
+    [
+      1693906,
+      946194,
+      -12693
+    ],
+    [
+      1695451,
+      937079,
+      -12693
+    ]
+  ],
+  "transform": {
+    "scale": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "translate": [
+      123596.015625,
+      496890.3125,
+      12.693000793457031
+    ]
+  },
+  "CityObjects": {
+    "NL.IMBAG.Pand.0852100000001781": {
+      "attributes": {
+        "b3_bag_bag_overlap": 0,
+        "b3_bouwlagen": 3,
+        "b3_dak_type": "slanted",
+        "b3_extrusie": 0,
+        "b3_h_dak_50p": 5.98199987411499,
+        "b3_h_dak_70p": 6.744999885559082,
+        "b3_h_dak_max": 7.8460001945495605,
+        "b3_h_dak_min": 1.503999948501587,
+        "b3_h_maaiveld": -1.2319999933242798,
+        "b3_is_glas_dak": false,
+        "b3_kas_warenhuis": false,
+        "b3_mutatie_AHN3_AHN4": false,
+        "b3_mutatie_AHN4_AHN5": false,
+        "b3_n_vlakken": 3,
+        "b3_nodata_fractie_AHN3": 0.0069444444961845875,
+        "b3_nodata_fractie_AHN4": 0.0243055559694767,
+        "b3_nodata_fractie_AHN5": 0.0416666679084301,
+        "b3_nodata_radius_AHN3": 0.37878039479255676,
+        "b3_nodata_radius_AHN4": 0.44979047775268555,
+        "b3_nodata_radius_AHN5": 0.46640896797180176,
+        "b3_opp_buitenmuur": 158.55,
+        "b3_opp_dak_plat": 9.46,
+        "b3_opp_dak_schuin": 69.67,
+        "b3_opp_grond": 66.75,
+        "b3_opp_scheidingsmuur": 79.37,
+        "b3_puntdichtheid_AHN3": 21.48251724243164,
+        "b3_puntdichtheid_AHN4": 26.37722396850586,
+        "b3_puntdichtheid_AHN5": 14.246376991271973,
+        "b3_pw_bron": "AHN5",
+        "b3_pw_datum": 2023,
+        "b3_pw_onvoldoende": false,
+        "b3_pw_selectie_reden": "PREFERRED_AND_LATEST",
+        "b3_rmse_lod12": 2.0985007286071777,
+        "b3_rmse_lod13": 1.0582828521728516,
+        "b3_rmse_lod22": 0.16211092472076416,
+        "b3_succes": true,
+        "b3_t_run": 54,
+        "b3_val3dity_lod12": "[]",
+        "b3_val3dity_lod13": "[]",
+        "b3_val3dity_lod22": "[102]",
+        "b3_volume_lod12": 529.5869750976562,
+        "b3_volume_lod13": 491.3935546875,
+        "b3_volume_lod22": 455.7266540527344,
+        "begingeldigheid": "2010-02-09",
+        "documentdatum": "2010-02-09",
+        "documentnummer": "B10.00074",
+        "eindgeldigheid": null,
+        "eindregistratie": null,
+        "fid": 16339065,
+        "geconstateerd": false,
+        "identificatie": "NL.IMBAG.Pand.0852100000001781",
+        "oorspronkelijkbouwjaar": 1973,
+        "rf_force_lod11": false,
+        "status": "Pand in gebruik",
+        "tijdstipeindregistratielv": null,
+        "tijdstipinactief": null,
+        "tijdstipinactieflv": null,
+        "tijdstipnietbaglv": null,
+        "tijdstipregistratie": "2010-12-09T19:47:56Z",
+        "tijdstipregistratielv": "2010-12-09T20:03:04Z",
+        "voorkomenidentificatie": 1
+      },
+      "children": [
+        "NL.IMBAG.Pand.0852100000001781-0"
+      ],
+      "geographicalExtent": [
+        125290.01302148438,
+        497827.43764648435,
+        -1.2319999933242798,
+        125297.8189296875,
+        497841.71401367185,
+        7.87243127822876
+      ],
+      "geometry": [
+        {
+          "boundaries": [
+            [
+              [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            ]
+          ],
+          "lod": "0",
+          "type": "MultiSurface"
+        }
+      ],
+      "type": "Building"
+    }
+  }
+}

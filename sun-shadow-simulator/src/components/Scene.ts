@@ -5,7 +5,6 @@ import {
   DirectionalLight,
   AmbientLight,
   MeshStandardMaterial,
-  BoxGeometry,
   Mesh,
   PlaneGeometry,
   Color,
@@ -20,6 +19,11 @@ import {
   Object3D,
   BufferGeometry,
   Float32BufferAttribute,
+  Box3,
+  SphereGeometry,
+  MeshBasicMaterial,
+  CameraHelper,
+  BoxGeometry,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SunCalculator, SunPosition } from "../utils/SunCalculator";
@@ -27,10 +31,9 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-import * as SunCalc from "suncalc";
 
 interface CityJSON {
-  vertices: number[][];
+  vertices: { key: number; value: number[] }[];
   CityObjects: {
     [key: string]: {
       geometry: Array<{
@@ -56,7 +59,6 @@ export class GardenScene {
   private renderer: WebGLRenderer;
   private controls: OrbitControls;
   private ground!: Mesh; // Using definite assignment assertion
-  private house!: Group; // Using definite assignment assertion
   private sunlight!: DirectionalLight; // Using definite assignment assertion
   private directionMarkers!: Group; // Using definite assignment assertion
   private customModels: Object3D[] = [];
@@ -129,7 +131,7 @@ export class GardenScene {
 
     // Load CityJSON buildings
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}/example.json`);
+      const response = await fetch(`${import.meta.env.BASE_URL}/extracted.json`);
       const cityJSON = (await response.json()) as CityJSON;
 
       console.log("Loaded CityJSON:", cityJSON);
@@ -142,7 +144,6 @@ export class GardenScene {
       // Calculate center point for centering the buildings
       const centerX = cityJSON.transform.translate[0];
       const centerY = cityJSON.transform.translate[1];
-      const centerZ = cityJSON.transform.translate[2];
 
       // Create materials for different surface types
       const materials = {
@@ -177,8 +178,12 @@ export class GardenScene {
         building.geometry.forEach((geom: { boundaries: number[][][] }) => {
           geom.boundaries.forEach((boundary: number[][]) => {
             boundary[0].forEach((vertexIndex: number) => {
-              const vertex = cityJSON.vertices[vertexIndex];
-              const z = vertex[2] * cityJSON.transform.scale[2];
+              const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
+              if (!vertex) {
+                console.warn("Vertex not found:", vertexIndex);
+                return
+              }
+              const z = vertex.value[2] * cityJSON.transform.scale[2];
               if (z < minZ) minZ = z;
             });
           });
@@ -211,21 +216,40 @@ export class GardenScene {
 
               // Convert vertices
               const vertices: number[] = [];
+
+              // Debug: Log first few raw vertices before transformation
+              if (index === 0) {
+                console.log('Raw vertex data (first 3):');
+                for (let i = 0; i < Math.min(boundary[0].length, 3); i++) {
+                  const vertexIndex = boundary[0][i];
+                  const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
+                  if (vertex) {
+                    console.log(`Vertex ${i}:`, vertex.value);
+                    console.log(`Scale:`, cityJSON.transform.scale);
+                    console.log(`Translate:`, cityJSON.transform.translate);
+                  }
+                }
+              }
+
               boundary[0].forEach((vertexIndex: number) => {
-                const vertex = cityJSON.vertices[vertexIndex];
+                const vertex = cityJSON.vertices.find(x => x.key === vertexIndex);
+                if (!vertex) {
+                  console.warn("Vertex not found:", vertexIndex);
+                  return
+                }
                 // Apply transform: center X and Y, and align base to ground for Z
                 const x =
-                  (vertex[0] * cityJSON.transform.scale[0] +
+                  (vertex.value[0] * cityJSON.transform.scale[0] +
                     cityJSON.transform.translate[0] -
                     centerX) *
                   0.1;
                 const z =
-                  (vertex[1] * cityJSON.transform.scale[1] +
+                  (vertex.value[1] * cityJSON.transform.scale[1] +
                     cityJSON.transform.translate[1] -
                     centerY) *
                   0.1; // Y (CityJSON) -> Z (Three.js)
                 const y =
-                  (vertex[2] * cityJSON.transform.scale[2] - minZ) * 0.1; // Z (CityJSON) -> Y (Three.js), align base to ground
+                  (vertex.value[2] * cityJSON.transform.scale[2] - minZ) * 0.1; // Z (CityJSON) -> Y (Three.js), align base to ground
                 vertices.push(x, y, z);
               });
 
@@ -253,7 +277,37 @@ export class GardenScene {
                   "First vertex position after transform:",
                   firstVertex
                 );
+
+                // Debug: Add small spheres at the first few vertices to see where they are
+                for (let i = 0; i < Math.min(vertices.length / 3, 5); i++) {
+                  const debugVertexGeometry = new SphereGeometry(0.2);
+                  const debugVertexMaterial = new MeshBasicMaterial({ color: 0x00ff00 });
+                  const debugVertexSphere = new Mesh(debugVertexGeometry, debugVertexMaterial);
+                  debugVertexSphere.position.set(
+                    vertices[i * 3],
+                    vertices[i * 3 + 1],
+                    vertices[i * 3 + 2]
+                  );
+                  // this.scene.add(debugVertexSphere);
+                }
               }
+
+              console.log('Adding mesh');
+
+              // Debug: Log mesh dimensions and position
+              const box = new Box3().setFromObject(mesh);
+              const size = box.getSize(new Vector3());
+              const center = box.getCenter(new Vector3());
+              console.log('Mesh dimensions:', size);
+              console.log('Mesh center:', center);
+              console.log('Mesh position:', mesh.position);
+
+              // Debug: Add a small visible sphere at the mesh center to see where it is
+              const debugGeometry = new SphereGeometry(0.5);
+              const debugMaterial = new MeshBasicMaterial({ color: 0xff0000 });
+              const debugSphere = new Mesh(debugGeometry, debugMaterial);
+              debugSphere.position.copy(center);
+              // this.scene.add(debugSphere);
 
               this.scene.add(mesh);
             });
@@ -262,6 +316,41 @@ export class GardenScene {
       });
     } catch (error) {
       console.error("Error loading CityJSON:", error);
+    }
+
+    // Debug: Log overall scene bounds after all buildings are added
+    console.log('Scene children count:', this.scene.children.length);
+
+    // Create a temporary group to calculate overall bounds
+    const tempGroup = new Group();
+    this.scene.children.forEach(child => {
+      if (child instanceof Mesh && child !== this.ground) {
+        tempGroup.add(child.clone());
+      }
+    });
+
+    if (tempGroup.children.length > 0) {
+      const overallBox = new Box3().setFromObject(tempGroup);
+      const overallSize = overallBox.getSize(new Vector3());
+      const overallCenter = overallBox.getCenter(new Vector3());
+      console.log('Overall buildings bounds:', overallBox);
+      console.log('Overall buildings size:', overallSize);
+      console.log('Overall buildings center:', overallCenter);
+
+      // Add a large wireframe box to show the overall bounds
+      const boundsGeometry = new BoxGeometry(overallSize.x, overallSize.y, overallSize.z);
+      const boundsMaterial = new MeshBasicMaterial({
+        color: 0xffff00,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.5
+      });
+      const boundsMesh = new Mesh(boundsGeometry, boundsMaterial);
+      boundsMesh.position.copy(overallCenter);
+      this.scene.add(boundsMesh);
+
+      // Debug: Auto-adjust camera to frame all objects
+      this.frameAllObjects();
     }
 
     // Create sunlight (directional light)
@@ -296,8 +385,25 @@ export class GardenScene {
     const gridHelper = new GridHelper(90, 90);
     this.scene.add(gridHelper);
 
+    // Debug: Add camera helper to visualize camera frustum
+    const cameraHelper = new CameraHelper(this.camera);
+    this.scene.add(cameraHelper);
+
+    // Debug: Log camera position and target
+    console.log('Camera position:', this.camera.position);
+    console.log('Camera target (lookAt):', new Vector3(0, 0, 0));
+    console.log('Camera near/far:', this.camera.near, this.camera.far);
+
     // Add cardinal direction markers
     this.addCardinalDirections();
+
+    // Debug: Add a simple test cube to verify rendering is working
+    const testGeometry = new BoxGeometry(5, 5, 5);
+    const testMaterial = new MeshBasicMaterial({ color: 0xff0000 });
+    const testCube = new Mesh(testGeometry, testMaterial);
+    testCube.position.set(0, 2.5, 0);
+    this.scene.add(testCube);
+    console.log('Added test cube at position:', testCube.position);
   }
 
   // Create cardinal direction markers
@@ -595,5 +701,43 @@ export class GardenScene {
       console.error("Error loading model:", error);
       throw error;
     }
+  }
+
+  // Debug method to frame all objects in the scene
+  private frameAllObjects(): void {
+    if (this.scene.children.length === 0) return;
+
+    // Create a bounding box for all objects (excluding helpers and lights)
+    const box = new Box3();
+    this.scene.children.forEach(child => {
+      if (child instanceof Mesh && child !== this.ground) {
+        box.expandByObject(child);
+      }
+    });
+
+    if (box.isEmpty()) return;
+
+    const center = box.getCenter(new Vector3());
+    const size = box.getSize(new Vector3());
+
+    // Calculate the distance needed to frame all objects
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const fov = this.camera.fov * (Math.PI / 180);
+    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+
+    // Add some padding
+    cameraZ *= 1.5;
+
+    // Position camera
+    this.camera.position.set(center.x, center.y + cameraZ * 0.5, center.z + cameraZ);
+    this.camera.lookAt(center);
+
+    // Update controls target
+    this.controls.target.copy(center);
+    this.controls.update();
+
+    console.log('Camera repositioned to frame all objects');
+    console.log('New camera position:', this.camera.position);
+    console.log('New camera target:', center);
   }
 }
