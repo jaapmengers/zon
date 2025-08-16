@@ -8,7 +8,6 @@ import {
   Mesh,
   PlaneGeometry,
   Color,
-  AxesHelper,
   GridHelper,
   PCFSoftShadowMap,
   Group,
@@ -21,6 +20,7 @@ import {
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SunCalculator, SunPosition } from "../utils/SunCalculator";
 import { CityJSONLoader, CityJSONParser } from "cityjson-threejs-loader";
+import { SingleCityJSON } from "../utils/CityJSONConverter";
 
 export class GardenScene {
   private scene: Scene;
@@ -30,6 +30,7 @@ export class GardenScene {
   private ground!: Mesh; // Using definite assignment assertion
   private sunlight!: DirectionalLight; // Using definite assignment assertion
   private directionMarkers!: Group; // Using definite assignment assertion
+  private cityJSONGroup: Group | null = null; // Store reference to CityJSON buildings
 
   private container: HTMLElement;
   private resizeObserver: ResizeObserver;
@@ -96,43 +97,6 @@ export class GardenScene {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
-    // Load CityJSON buildings using cityjson-threejs-loader
-    try {
-      const response = await fetch(`${import.meta.env.BASE_URL}/converted-output.json`);
-      const cityJSONData = await response.json();
-
-      // Initialize the parser and loader
-      const parser = new CityJSONParser();
-      const loader = new CityJSONLoader(parser);
-
-      // Load the CityJSON data
-      loader.load(cityJSONData);
-
-      // Add the loaded scene to our scene
-      this.scene.add(loader.scene);
-
-      // Fix the building rotation - rotate 90 degrees around Z-axis
-      loader.scene.rotation.x = -Math.PI / 2; // 90 degrees clockwise around Z-axis
-
-      // Center the CityJSON scene on X and Y axes, but keep Z at ground level (0)
-      const box = new Box3().setFromObject(loader.scene);
-      const center = box.getCenter(new Vector3());
-      loader.scene.position.x = -center.x;
-      loader.scene.position.y = 0;
-      loader.scene.position.z = -center.z; // Keep at ground level
-
-      this.scene.traverse((child) => {
-        if (child instanceof Mesh) {
-          if (child.material.isCityObjectsMaterial) {
-            child.material.showLod = 3;
-            child.castShadow = true
-          }
-        }
-      });
-    } catch (error) {
-      console.error("Error loading CityJSON:", error);
-    }
-
     // Create sunlight (directional light)
     this.sunlight = new DirectionalLight(0xffffaa, 3);
     this.sunlight.castShadow = true;
@@ -163,6 +127,71 @@ export class GardenScene {
 
     // Add cardinal direction markers
     this.addCardinalDirections();
+  }
+
+  // Method to load CityJSON data dynamically
+  public async loadCityJSONData(cityJSONData: SingleCityJSON): Promise<void> {
+    try {
+      console.log('Loading CityJSON data into scene:', cityJSONData);
+
+      // Remove existing CityJSON buildings if any
+      if (this.cityJSONGroup) {
+        this.scene.remove(this.cityJSONGroup);
+        this.cityJSONGroup = null;
+      }
+
+      // Initialize the parser and loader
+      const parser = new CityJSONParser();
+      const loader = new CityJSONLoader(parser);
+
+      // Load the CityJSON data
+      loader.load(cityJSONData);
+
+      // Store reference to the CityJSON group
+      this.cityJSONGroup = loader.scene;
+
+      // Add the loaded scene to our scene
+      this.scene.add(this.cityJSONGroup);
+
+      // Fix the building rotation - rotate 90 degrees around Z-axis
+      this.cityJSONGroup.rotation.x = -Math.PI / 2; // 90 degrees clockwise around Z-axis
+
+      // Center the CityJSON scene on X and Y axes, but keep Z at ground level (0)
+      const box = new Box3().setFromObject(this.cityJSONGroup);
+      const center = box.getCenter(new Vector3());
+      this.cityJSONGroup.position.x = -center.x;
+      this.cityJSONGroup.position.y = 0;
+      this.cityJSONGroup.position.z = -center.z; // Keep at ground level
+
+      // Configure materials and shadows
+      this.cityJSONGroup.traverse((child) => {
+        if (child instanceof Mesh) {
+          if (child.material.isCityObjectsMaterial) {
+            child.material.showLod = 3;
+            child.castShadow = true;
+          }
+        }
+      });
+
+      console.log('CityJSON data loaded successfully into scene');
+
+    } catch (error) {
+      console.error("Error loading CityJSON data into scene:", error);
+    }
+  }
+
+  // Method to clear existing CityJSON data
+  public clearCityJSONData(): void {
+    if (this.cityJSONGroup) {
+      this.scene.remove(this.cityJSONGroup);
+      this.cityJSONGroup = null;
+      console.log('CityJSON data cleared from scene');
+    }
+  }
+
+  // Method to get current CityJSON group (for debugging)
+  public getCityJSONGroup(): Group | null {
+    return this.cityJSONGroup;
   }
 
   // Create cardinal direction markers
