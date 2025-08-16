@@ -7,6 +7,42 @@ import { CityJSONConverter, CityJSONFeatureCollection } from "./utils/CityJSONCo
 const DEFAULT_LATITUDE = 52.46755248644969;
 const DEFAULT_LONGITUDE = 4.949130381009404;
 
+// Global variables
+let LATITUDE = DEFAULT_LATITUDE;
+let LONGITUDE = DEFAULT_LONGITUDE;
+let currentDate = new Date();
+
+// Loading indicator functions
+function showLoadingIndicator(message: string = "Loading building data...") {
+  const overlay = document.getElementById('loading-overlay');
+  const text = document.getElementById('loading-text');
+  const progress = document.getElementById('loading-progress');
+
+  if (overlay && text && progress) {
+    text.textContent = message;
+    progress.textContent = '';
+    overlay.classList.add('visible');
+  }
+}
+
+function updateLoadingProgress(message: string, percentage?: number) {
+  const progress = document.getElementById('loading-progress');
+  if (progress) {
+    let progressText = message;
+    if (percentage !== undefined) {
+      progressText += ` (${Math.round(percentage)}%)`;
+    }
+    progress.textContent = progressText;
+  }
+}
+
+function hideLoadingIndicator() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.classList.remove('visible');
+  }
+}
+
 // DOM Elements
 const container = document.getElementById("canvas-container");
 const dateDisplay = document.getElementById("date-display");
@@ -42,15 +78,14 @@ function parseUrlCoordinates(): { lat: number; long: number } {
 
 // Get current coordinates from URL or defaults
 const currentCoords = parseUrlCoordinates();
-let LATITUDE = currentCoords.lat;
-let LONGITUDE = currentCoords.long;
+LATITUDE = currentCoords.lat;
+LONGITUDE = currentCoords.long;
 
 // Initialize scene
 const scene = new GardenScene(container);
 
 // Initialize with current time
-const today = new Date();
-let currentDate = new Date(today); // Keep track of current/selected date
+currentDate = new Date(currentDate); // Keep track of current/selected date
 updateDisplays(currentDate);
 updateMinimapPosition(currentDate);
 updateSunPosition(currentDate);
@@ -172,6 +207,7 @@ function updateSunPosition(date: Date) {
 
 // Load CityJSON data for the given coordinates
 async function loadCityJSONForCoordinates(lat: number, long: number) {
+  showLoadingIndicator();
   try {
     console.log(`Loading CityJSON data for coordinates: ${lat}, ${long}`);
 
@@ -193,9 +229,11 @@ async function loadCityJSONForCoordinates(lat: number, long: number) {
     const cityJSONData = await getCityJSON(bbox);
 
     // Pass the data to the scene
+    updateLoadingProgress("Converting CityJSON data...", 100);
     await scene.loadCityJSONData(CityJSONConverter.convertToSingleCityJSON(cityJSONData));
 
     // Update the scene with new coordinates
+    updateLoadingProgress("Updating scene...", 100);
     updateSunPosition(currentDate);
 
   } catch (error) {
@@ -204,6 +242,8 @@ async function loadCityJSONForCoordinates(lat: number, long: number) {
     LATITUDE = DEFAULT_LATITUDE;
     LONGITUDE = DEFAULT_LONGITUDE;
     updateSunPosition(currentDate);
+  } finally {
+    hideLoadingIndicator();
   }
 }
 
@@ -222,11 +262,16 @@ export async function getCityJSON(bbox?: number[]): Promise<CityJSONFeatureColle
   const maxPages = 50; // Safety limit to prevent infinite loops
 
   console.log(`Starting to fetch CityJSON data with pagination from: ${baseUrl}`);
+  updateLoadingProgress("Starting data fetch...");
 
   while (hasNextPage && pageCount < maxPages) {
     pageCount++;
     const encodedUrl = `https://corsproxy.io/?url=${encodeURIComponent(currentUrl)}`;
     console.log(`Fetching page ${pageCount} from: ${encodedUrl}`);
+
+    // Estimate progress based on typical API response patterns
+    const estimatedProgress = Math.min((pageCount / 10) * 100, 95); // Assume most requests complete within 10 pages
+    updateLoadingProgress(`Fetching page ${pageCount}... (${allFeatures.length} features so far)`, estimatedProgress);
 
     try {
       const resp = await fetch(encodedUrl);
@@ -245,6 +290,7 @@ export async function getCityJSON(bbox?: number[]): Promise<CityJSONFeatureColle
       if (data.features && data.features.length > 0) {
         allFeatures.push(...data.features);
         console.log(`Page ${pageCount}: Added ${data.features.length} features. Total so far: ${allFeatures.length}`);
+        updateLoadingProgress(`Page ${pageCount} complete: ${allFeatures.length} total features`, estimatedProgress);
       }
 
       // Check if there's a next page
@@ -262,17 +308,21 @@ export async function getCityJSON(bbox?: number[]): Promise<CityJSONFeatureColle
 
       // Add a small delay to be respectful to the API
       if (hasNextPage) {
+        updateLoadingProgress(`Waiting before next page... (${allFeatures.length} features collected)`, estimatedProgress);
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
     } catch (error) {
       console.error(`Error fetching page ${pageCount}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      updateLoadingProgress(`Error on page ${pageCount}: ${errorMessage}`);
       break;
     }
   }
 
   if (pageCount >= maxPages) {
     console.warn(`Reached maximum page limit (${maxPages}). There may be more data available.`);
+    updateLoadingProgress(`Reached maximum page limit (${maxPages})`);
   }
 
   if (!firstPageData) {
@@ -280,6 +330,7 @@ export async function getCityJSON(bbox?: number[]): Promise<CityJSONFeatureColle
   }
 
   console.log(`Finished fetching all pages. Total features collected: ${allFeatures.length}`);
+  updateLoadingProgress(`Processing ${allFeatures.length} features...`, 95);
 
   // Create a combined result with all features
   const combinedResult: CityJSONFeatureCollection = {
@@ -291,6 +342,7 @@ export async function getCityJSON(bbox?: number[]): Promise<CityJSONFeatureColle
     numberReturned: allFeatures.length
   };
 
+  updateLoadingProgress(`Data collection complete: ${allFeatures.length} features`, 100);
   return combinedResult;
 }
 
@@ -312,11 +364,19 @@ async function changeCoordinates(lat: number, long: number) {
   // Update URL
   updateUrlWithCoordinates(lat, long);
 
-  // Reload CityJSON data for new coordinates
-  await loadCityJSONForCoordinates(lat, long);
+  // Show loading indicator for coordinate change
+  showLoadingIndicator("Changing location and loading new data...");
 
-  // Update sun position with new coordinates
-  updateSunPosition(currentDate);
+  try {
+    // Reload CityJSON data for new coordinates
+    await loadCityJSONForCoordinates(lat, long);
+
+    // Update sun position with new coordinates
+    updateSunPosition(currentDate);
+  } catch (error) {
+    console.error('Error changing coordinates:', error);
+    hideLoadingIndicator();
+  }
 }
 
 // Make functions globally accessible for testing
@@ -326,6 +386,25 @@ async function changeCoordinates(lat: number, long: number) {
 (window as any).scene = scene;
 (window as any).clearCityJSONData = () => scene.clearCityJSONData();
 (window as any).getCityJSONGroup = () => scene.getCityJSONGroup();
+(window as any).testLoadingIndicator = testLoadingIndicator;
+
+// Test function for loading indicator
+async function testLoadingIndicator() {
+  showLoadingIndicator("Testing loading indicator...");
+
+  // Simulate different loading stages
+  for (let i = 0; i <= 100; i += 10) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    updateLoadingProgress(`Test progress: ${i}%`, i);
+  }
+
+  updateLoadingProgress("Test complete!", 100);
+
+  // Hide after a short delay
+  setTimeout(() => {
+    hideLoadingIndicator();
+  }, 1000);
+}
 
 // Handle browser back/forward navigation
 window.addEventListener('popstate', () => {
@@ -340,4 +419,5 @@ console.log('Sun Shadow Simulator initialized with coordinates:', { lat: LATITUD
 console.log('Use window.changeCoordinates(lat, long) to change coordinates programmatically');
 
 // Load initial CityJSON data for the current coordinates
+showLoadingIndicator("Loading initial building data...");
 loadCityJSONForCoordinates(LATITUDE, LONGITUDE);

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,7 +14,7 @@
             height: 100vh;
             width: 100vw;
         }
-        
+
         #container {
             display: flex;
             flex-direction: column;
@@ -21,77 +22,79 @@
             max-height: 100vh;
             overflow: hidden;
         }
-        
+
         #canvas-container {
             flex: 1;
             width: 100%;
-            min-height: 0; /* Crucial for flexbox to allow child to shrink */
+            min-height: 0;
+            /* Crucial for flexbox to allow child to shrink */
             position: relative;
         }
-        
+
         #canvas-container canvas {
             display: block;
             width: 100%;
             height: 100%;
         }
-        
+
         #controls {
             background-color: #f0f0f0;
             padding: 10px;
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            flex-shrink: 0; /* Prevent controls from shrinking */
+            flex-shrink: 0;
+            /* Prevent controls from shrinking */
             justify-content: center;
             align-items: center;
         }
-        
+
         #controls div {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        
+
         label {
             margin-bottom: 5px;
         }
-        
+
         button {
             padding: 8px 16px;
             cursor: pointer;
             margin-top: auto;
         }
-        
+
         .time-control {
             display: flex;
             flex-direction: column;
             width: 100%;
             max-width: 450px;
         }
-        
+
         .time-control-inputs {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        
+
         .time-slider-container {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
         }
-        
+
         .time-labels {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
             margin-top: 2px;
         }
-        
+
         input[type="range"] {
             width: 100%;
         }
-        
+
         .time-display {
             font-weight: bold;
             font-size: 1.2em;
@@ -121,12 +124,16 @@
             width: 100%;
             height: 100%;
             position: relative;
-            background: linear-gradient(to bottom, 
-                #87CEEB 0%,    /* Summer */
-                #87CEEB 25%,   /* Spring */
-                #87CEEB 75%,   /* Fall */
-                #87CEEB 100%   /* Winter */
-            );
+            background: linear-gradient(to bottom,
+                    #87CEEB 0%,
+                    /* Summer */
+                    #87CEEB 25%,
+                    /* Spring */
+                    #87CEEB 75%,
+                    /* Fall */
+                    #87CEEB 100%
+                    /* Winter */
+                );
         }
 
         .minimap-control {
@@ -138,7 +145,7 @@
             transform: translate(-50%, -50%);
             cursor: move;
             border: 2px solid white;
-            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
         }
 
         .minimap-labels {
@@ -166,11 +173,69 @@
             justify-content: space-between;
             font-size: 10px;
         }
+
+        /* Loading indicator styles */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+            color: white;
+        }
+
+        .loading-overlay.visible {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .loading-progress {
+            font-size: 14px;
+            color: #ccc;
+            text-align: center;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
+
 <body>
     <div id="container">
         <div id="canvas-container">
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" id="loading-text">Loading building data...</div>
+                <div class="loading-progress" id="loading-progress"></div>
+            </div>
             <div class="minimap-container">
                 <div class="minimap">
                     <div class="minimap-control" id="minimap-control"></div>
@@ -200,4 +265,5 @@
     </div>
     <script type="module" src="/src/main.ts"></script>
 </body>
+
 </html>
